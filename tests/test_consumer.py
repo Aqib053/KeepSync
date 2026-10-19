@@ -69,3 +69,31 @@ def test_follows_awaited_json():
         '    return data["customer_name"]\n'
     )
     assert [u.line for u in find_field_usages(src, "customer_name")] == [3]
+
+
+def test_follows_json_loads_on_text():
+    src = (
+        "import json\n\n"
+        "def get(r):\n"
+        '    return json.loads(r.text)["customer_name"]\n'
+    )
+    assert [u.line for u in find_field_usages(src, "customer_name")] == [4]
+
+
+def test_follows_alias_of_response_name():
+    src = (
+        "def get(r):\n"
+        "    data = r.json()\n"
+        "    payload = data\n"
+        '    return payload["customer_name"]\n'
+    )
+    assert [u.line for u in find_field_usages(src, "customer_name")] == [4]
+
+
+def test_ignores_json_loads_of_other_values():
+    src = (
+        "import json\n\n"
+        "def get(s):\n"
+        '    return json.loads(s)["customer_name"]\n'
+    )
+    assert find_field_usages(src, "customer_name") == []

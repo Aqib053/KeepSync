@@ -14,13 +14,20 @@ def _is_key(node, field: str) -> bool:
 
 
 def _is_json_call(node) -> bool:
-    """True for `something.json()` and `await something.json()`."""
+    """`x.json()`, `await x.json()`, or `json.loads(x.text)` / `json.loads(x.content)`."""
     if isinstance(node, ast.Await):
         node = node.value
+    if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+        return False
+    if node.func.attr == "json":
+        return True
     return (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "json"
+        node.func.attr == "loads"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "json"
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Attribute)
+        and node.args[0].attr in ("text", "content")
     )
 
 
@@ -36,11 +43,23 @@ def _walk_scope(scope):
 
 
 def _response_names(scope) -> set:
-    """Names assigned from `<x>.json()` directly inside this scope."""
+    """Names assigned from a response, or from another such name, in this scope."""
+    assigns = [n for n in _walk_scope(scope) if isinstance(n, ast.Assign)]
     names = set()
-    for node in _walk_scope(scope):
-        if isinstance(node, ast.Assign) and _is_json_call(node.value):
-            names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    changed = True
+    while changed:
+        changed = False
+        for node in assigns:
+            value = node.value
+            is_response = _is_json_call(value) or (
+                isinstance(value, ast.Name) and value.id in names
+            )
+            if not is_response:
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id not in names:
+                    names.add(target.id)
+                    changed = True
     return names
 
 
@@ -86,7 +105,8 @@ class _Finder(ast.NodeVisitor):
 
 def find_field_usages(source: str, field: str) -> list:
     """Find reads of `field` on an API response: r.json()["field"],
-    r.json().get("field"), or the same on a name assigned from `.json()`."""
+    r.json().get("field"), json.loads(r.text)["field"], or the same on a
+    name assigned from a response."""
     tree = ast.parse(source)
     finder = _Finder(field, _response_names(tree))
     finder.visit(tree)
