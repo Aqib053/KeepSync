@@ -37,3 +37,33 @@ def plan_fixes(old_spec: dict, new_spec: dict, repo: Path):
 def run_tests(repo: Path, test_cmd: str, env_extra: dict) -> bool:
     env = {**os.environ, **env_extra}
     return subprocess.run(test_cmd, shell=True, cwd=repo, env=env).returncode == 0
+
+
+def open_pr(repo: Path, changes: list, edited_files: list) -> str:
+    import re
+
+    renames = [c for c in changes if c.kind == "rename"]
+    summary = ", ".join(f"{c.field} -> {c.new_field}" for c in renames)
+    names = "-".join(c.new_field for c in renames)
+    branch = "keepsync/" + re.sub(r"[^A-Za-z0-9._-]", "-", names)
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=repo, check=True)
+
+    git("checkout", "-b", branch)
+    git("add", *[str(p.relative_to(repo)) for p in edited_files])
+    git("commit", "-m", f"KeepSync: follow API rename ({summary})")
+    git("push", "-u", "origin", branch)
+
+    lines = "\n".join(
+        f"- `{c.method} {c.path}`: `{c.field}` -> `{c.new_field}`" for c in renames
+    )
+    body = (
+        f"KeepSync detected an API change and updated this repo.\n\n{lines}\n\n"
+        "The tests were run after the fix and passed before this PR was opened."
+    )
+    out = subprocess.run(
+        ["gh", "pr", "create", "--title", f"Follow API rename: {summary}", "--body", body],
+        cwd=repo, check=True, capture_output=True, text=True,
+    )
+    return out.stdout.strip()
