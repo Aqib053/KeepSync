@@ -130,3 +130,26 @@ CASES = [
     Case("20_rename_but_test_fails", OLD, NEW,
          simple('r.json()["customer_name"]', NEW_DATA, '"Wrong"'), "reverted"),
 ]
+
+
+# Fresh cases, written after the response-only fix and never tuned against.
+FRESH = [
+    Case("21_nested_helper_function", OLD, NEW, custom(
+        'def get(r):\n    def inner():\n        return r.json()["customer_name"]\n    return inner()\n',
+        GET_ASHA), "fixed"),
+    Case("22_comprehension_on_assigned_name", OLD, NEW, custom(
+        'def get(r):\n    data = r.json()\n'
+        '    names = [data["customer_name"] for _ in range(2)]\n    return names[0]\n',
+        GET_ASHA), "fixed"),
+    Case("23_json_loads_on_text", OLD, NEW, custom(
+        'import json\n\n\ndef get(r):\n    return json.loads(r.text)["customer_name"]\n',
+        'import json\n\n\nclass T:\n    text = json.dumps({"id": 1, "customer": "Asha"})\n\n\n'
+        'def test_get():\n    assert get(T()) == "Asha"\n'), "fixed"),
+    Case("24_alias_of_response", OLD, NEW, custom(
+        'def get(r):\n    data = r.json()\n    payload = data\n    return payload["customer_name"]\n',
+        GET_ASHA), "fixed"),
+    Case("25_helper_receives_data", OLD, NEW, custom(
+        'def parse(data):\n    return data["customer_name"]\n\n\n'
+        'def get(r):\n    return parse(r.json())\n',
+        GET_ASHA), "fixed"),
+]
