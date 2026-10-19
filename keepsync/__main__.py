@@ -1,8 +1,9 @@
 import argparse
+import subprocess
 from pathlib import Path
 
 from keepsync.contract import load_spec
-from keepsync.fix import plan_fixes, run_tests
+from keepsync.fix import open_pr, plan_fixes, run_tests
 
 
 def main(argv=None) -> int:
@@ -12,6 +13,7 @@ def main(argv=None) -> int:
     p.add_argument("repo", help="consumer repo to fix")
     p.add_argument("--test-cmd", default="python -m pytest")
     p.add_argument("--env", action="append", default=[], metavar="KEY=VALUE")
+    p.add_argument("--open-pr", action="store_true", help="open a GitHub PR if tests pass")
     args = p.parse_args(argv)
 
     repo = Path(args.repo).expanduser().resolve()
@@ -34,6 +36,12 @@ def main(argv=None) -> int:
     print("Running tests...")
     if run_tests(repo, args.test_cmd, env):
         print("Tests pass. Fix is verified.")
+        if args.open_pr:
+            try:
+                print("PR opened:", open_pr(repo, changes, list(edits)))
+            except subprocess.CalledProcessError as e:
+                print(f"Could not open the PR: {e}")
+                return 1
         return 0
 
     for path, text in originals.items():

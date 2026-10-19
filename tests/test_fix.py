@@ -35,3 +35,21 @@ def test_fix_reverted_when_tests_fail(tmp_path):
     repo = make_repo(tmp_path, "Wrong")
     assert main([OLD, NEW, str(repo), "--test-cmd", CMD]) == 1
     assert (repo / "client.py").read_text() == CLIENT
+
+
+def test_open_pr_adds_only_changed_files(tmp_path, monkeypatch):
+    from keepsync import fix
+    from keepsync.contract import Change
+
+    calls = []
+
+    class Done:
+        stdout = "https://github.com/x/y/pull/1\n"
+
+    monkeypatch.setattr(fix.subprocess, "run", lambda cmd, **kw: calls.append(cmd) or Done())
+    change = Change("rename", "GET", "/orders/{order_id}", "customer_name", new_field="customer")
+    url = fix.open_pr(tmp_path, [change], [tmp_path / "billing" / "client.py"])
+
+    assert url.endswith("/pull/1")
+    assert calls[0][:3] == ["git", "checkout", "-b"]
+    assert ["git", "add", "billing/client.py"] in calls
