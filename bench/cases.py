@@ -153,3 +153,102 @@ FRESH = [
         'def get(r):\n    return parse(r.json())\n',
         GET_ASHA), "fixed"),
 ]
+
+
+# Fresh batch 2: written after the v3 scanner, never tuned against.
+from bench.specs import make_multi_spec  # noqa: E402
+
+FAKE_CLIENT = '''
+
+class FakeClient:
+    def __init__(self, routes):
+        self.routes = routes
+
+    def get(self, path):
+        return R(self.routes[path])
+
+'''
+
+TWO_ENDPOINTS = custom(
+    'def order_name(client):\n    return client.get("/orders/1").json()["customer_name"]\n\n\n'
+    'def user_name(client):\n    return client.get("/users/1").json()["customer_name"]\n',
+    FAKE_CLIENT + (
+        'ROUTES = {\n'
+        '    "/orders/1": {"id": 1, "customer": "Asha"},\n'
+        '    "/users/1": {"id": 1, "customer_name": "Uma"},\n'
+        '}\n\n\n'
+        'def test_both():\n'
+        '    client = FakeClient(ROUTES)\n'
+        '    assert order_name(client) == "Asha"\n'
+        '    assert user_name(client) == "Uma"\n'
+    ),
+    imports="from client import order_name, user_name\n")
+
+TWO_RENAMES = custom(
+    'def order_name(client):\n    return client.get("/orders/1").json()["customer_name"]\n\n\n'
+    'def user_name(client):\n    return client.get("/users/1").json()["user_name"]\n',
+    FAKE_CLIENT + (
+        'ROUTES = {\n'
+        '    "/orders/1": {"id": 1, "customer": "Asha"},\n'
+        '    "/users/1": {"id": 1, "username": "Uma"},\n'
+        '}\n\n\n'
+        'def test_both():\n'
+        '    client = FakeClient(ROUTES)\n'
+        '    assert order_name(client) == "Asha"\n'
+        '    assert user_name(client) == "Uma"\n'
+    ),
+    imports="from client import order_name, user_name\n")
+
+NESTED = custom(
+    'def get(r):\n    return r.json()["order"]["customer_name"]\n',
+    '\ndef test_get():\n'
+    '    assert get(R({"id": 1, "order": {"customer": "Asha"}})) == "Asha"\n')
+
+IN_LIST = custom(
+    'def get(r):\n    return [line["sku"] for line in r.json()["lines"]]\n',
+    '\ndef test_get():\n'
+    '    assert get(R({"id": 1, "lines": [{"code": "A1"}]})) == ["A1"]\n')
+
+
+def _obj(**props):
+    return {"type": "object", "properties": {k: {"type": v} for k, v in props.items()}}
+
+
+def _arr(**props):
+    return {"type": "array", "items": _obj(**props)}
+
+
+FRESH2 = [
+    Case("26_same_field_other_endpoint",
+         make_multi_spec({
+             "/orders/{order_id}": {"id": "integer", "customer_name": "string"},
+             "/users/{user_id}": {"id": "integer", "customer_name": "string"}}),
+         make_multi_spec({
+             "/orders/{order_id}": {"id": "integer", "customer": "string"},
+             "/users/{user_id}": {"id": "integer", "customer_name": "string"}}),
+         TWO_ENDPOINTS, "fixed",
+         check=lambda after: '"/users/1").json()["customer_name"]' in after["client.py"]),
+    Case("27_nested_object_field",
+         make_multi_spec({"/orders/{order_id}": {
+             "id": "integer", "order": _obj(customer_name="string")}}),
+         make_multi_spec({"/orders/{order_id}": {
+             "id": "integer", "order": _obj(customer="string")}}),
+         NESTED, "fixed"),
+    Case("28_field_in_list_of_objects",
+         make_multi_spec({"/orders/{order_id}": {
+             "id": "integer", "lines": _arr(sku="string")}}),
+         make_multi_spec({"/orders/{order_id}": {
+             "id": "integer", "lines": _arr(code="string")}}),
+         IN_LIST, "fixed"),
+    Case("29_two_renames_two_endpoints",
+         make_multi_spec({
+             "/orders/{order_id}": {"id": "integer", "customer_name": "string"},
+             "/users/{user_id}": {"id": "integer", "user_name": "string"}}),
+         make_multi_spec({
+             "/orders/{order_id}": {"id": "integer", "customer": "string"},
+             "/users/{user_id}": {"id": "integer", "username": "string"}}),
+         TWO_RENAMES, "fixed"),
+    Case("30_camel_case_rename", OLD, {"id": "integer", "customerName": "string"},
+         simple('r.json()["customer_name"]',
+                '{"id": 1, "customerName": "Asha"}', '"Asha"'), "fixed"),
+]
