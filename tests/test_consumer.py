@@ -97,3 +97,43 @@ def test_ignores_json_loads_of_other_values():
         '    return json.loads(s)["customer_name"]\n'
     )
     assert find_field_usages(src, "customer_name") == []
+
+
+ORDERS = ["/orders/{order_id}"]
+
+
+def test_skips_reads_from_a_different_endpoint():
+    src = (
+        "def a(c):\n"
+        '    return c.get("/orders/1").json()["customer_name"]\n'
+        "\n"
+        "def b(c):\n"
+        '    return c.get("/users/1").json()["customer_name"]\n'
+    )
+    assert [u.line for u in find_field_usages(src, "customer_name", ORDERS)] == [2]
+
+
+def test_keeps_reads_when_the_url_is_not_visible():
+    src = 'def a(c, url):\n    return c.get(url).json()["customer_name"]\n'
+    assert len(find_field_usages(src, "customer_name", ORDERS)) == 1
+
+
+def test_matches_f_string_urls():
+    src = (
+        "def a(c, order_id):\n"
+        '    return c.get(f"/orders/{order_id}").json()["customer_name"]\n'
+    )
+    assert len(find_field_usages(src, "customer_name", ORDERS)) == 1
+
+
+def test_matches_full_urls():
+    src = (
+        "def a(c):\n"
+        '    return c.get("https://api.example.com/orders/7").json()["customer_name"]\n'
+    )
+    assert len(find_field_usages(src, "customer_name", ORDERS)) == 1
+
+
+def test_does_not_match_a_longer_path():
+    src = 'def a(c):\n    return c.get("/orders/7/lines").json()["customer_name"]\n'
+    assert find_field_usages(src, "customer_name", ORDERS) == []

@@ -24,7 +24,7 @@ def plan_fixes(old_spec: dict, new_spec: dict, repo: Path):
         new_source = source
         for c in renames:
             try:
-                usages = find_field_usages(new_source, c.field)
+                usages = find_field_usages(new_source, c.field, [c.path])
             except SyntaxError:
                 break
             if usages:
