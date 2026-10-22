@@ -22,7 +22,7 @@ To watch the whole story on your machine, run `demo/demo.sh` from this repo.
 
 **What you need**
 - Python 3.10 or newer.
-- Your API's OpenAPI description saved as **JSON**, from **before** and **after** the change. YAML is not supported yet.
+- Your API's OpenAPI description as a JSON or YAML file, from **before** and **after** the change.
 - A Python project that calls your API and has tests.
 
 **Steps**
@@ -65,6 +65,14 @@ If your tests need packages from your project's own virtual environment, use tha
 **Safety**
 - Use it only on projects you own.
 - Don't add `--open-pr` in a fork of someone else's project, because the pull request may go to the original project.
+## Try it safely: dry run
+
+Add `--dry-run` to see what KeepSync would change. It prints the planned edits as a diff, changes nothing and runs no tests.
+
+    python -m keepsync old.yaml new.yaml /path/to/consumer-repo --dry-run
+
+Specs can be JSON or YAML. YAML needs `pyyaml`, which `python -m pip install -r requirements.txt` installs.
+
 ## Benchmark
 
 Cases are written by the author, so they measure what the author imagined, not real-world code. Run them with `python -m bench.run`, `python -m bench.fresh` and `python -m bench.fresh --batch 2`.
