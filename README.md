@@ -20,58 +20,51 @@ To watch the whole story on your machine, run `demo/demo.sh` from this repo.
 
 ## Use it on your own project
 
-You need:
-- Python 3.10 or newer
-- The API's OpenAPI spec as a **JSON** file, from before and after the change (YAML is not supported yet)
-- A Python repo that calls that API and has tests you can run on your machine
+**What you need**
+- Python 3.10 or newer.
+- Your API's OpenAPI description saved as **JSON**, from **before** and **after** the change. YAML is not supported yet.
+- A Python project that calls your API and has tests.
 
-KeepSync is not on PyPI yet. You run it from a clone of this repo.
+**Steps**
 
-### 1. Set up KeepSync (once)
+1. Get KeepSync (once):
 
-    git clone https://github.com/Aqib053/KeepSync.git
-    cd KeepSync
-    python3 -m venv .venv
-    source .venv/bin/activate
-    python -m pip install -r requirements.txt
+```
+git clone https://github.com/Aqib053/KeepSync.git
+cd KeepSync
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
 
-### 2. Export the API spec before and after the change
+2. Save your API description before you change the API. For FastAPI, run this inside your API project:
 
-A FastAPI example. Run it in the API repo, once on the old code and once on the new code:
+```
+python -c "import json; from main import app; print(json.dumps(app.openapi(), indent=2))" > old.json
+```
 
-    python -c "import json; from main import app; print(json.dumps(app.openapi(), indent=2))" > old.json
-    # change the API, then:
-    python -c "import json; from main import app; print(json.dumps(app.openapi(), indent=2))" > new.json
+Change your API, then run it again and save the result as `new.json`.
 
-For other frameworks, export or download the spec as JSON.
+3. Make a **copy** of the project that calls your API. KeepSync edits files in that copy.
 
-### 3. Work on a copy
+4. From the KeepSync folder, run:
 
-KeepSync edits files in place and restores them if the tests fail. Use a copy of the consumer repo, or a clean git branch, so `git diff` shows exactly what changed.
+```
+python -m keepsync old.json new.json /path/to/your-copy --test-cmd "python -m pytest"
+```
 
-### 4. Run KeepSync on the consumer repo
+If your tests need packages from your project's own virtual environment, use that Python's full path, like `/path/to/your-copy/.venv/bin/python -m pytest`.
 
-From the KeepSync folder, with its virtualenv active:
+5. Read the last line of the output:
+- `Tests pass. Fix is verified.` means it fixed your code and your tests agree.
+- `Tests failed. Fix reverted.` means it undid the change, and nothing is changed.
+- `No fixes to apply.` means it found nothing it could fix safely.
 
-    python -m keepsync /path/to/old.json /path/to/new.json /path/to/consumer-repo --test-cmd "/path/to/consumer-repo/.venv/bin/python -m pytest"
+6. Run `git diff` in your copy, check the change, and copy it to your real project.
 
-- `--test-cmd` is a shell command that runs the consumer repo's tests. It runs inside that repo, so use the repo's own Python to find its packages. Only run it on code you trust.
-- `--env KEY=VALUE` passes an environment variable to the test command (repeat it for more).
-
-### 5. Read the result
-
-- `Changes found` lists what changed in the API.
-- `Fixed: <file>` means it rewrote that file.
-- `Tests pass. Fix is verified.` means the tests passed with the fix.
-- `Tests failed. Fix reverted.` means it undid the edit. Nothing is left changed.
-- `No fixes to apply.` means it found no safe fix.
-
-Then run `git diff` in the repo, review it, and commit it yourself.
-
-### Open a PR (optional)
-
-Add `--open-pr`. After the tests pass, KeepSync creates a branch named `keepsync/<new field>`, commits only the changed files, pushes, and opens a PR with the GitHub CLI (`gh auth login` first). Use it only in a repo you own. In a fork, `gh` may point at the original project.
-
+**Safety**
+- Use it only on projects you own.
+- Don't add `--open-pr` in a fork of someone else's project, because the pull request may go to the original project.
 ## Benchmark
 
 Cases are written by the author, so they measure what the author imagined, not real-world code. Run them with `python -m bench.run`, `python -m bench.fresh` and `python -m bench.fresh --batch 2`.
