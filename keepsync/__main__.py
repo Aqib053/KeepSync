@@ -1,4 +1,5 @@
 import argparse
+import difflib
 import subprocess
 from pathlib import Path
 
@@ -8,13 +9,17 @@ from keepsync.fix import open_pr, plan_fixes, run_tests
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="keepsync")
-    p.add_argument("old", help="old OpenAPI spec (JSON)")
-    p.add_argument("new", help="new OpenAPI spec (JSON)")
+    p.add_argument("old", help="old OpenAPI spec (JSON or YAML)")
+    p.add_argument("new", help="new OpenAPI spec (JSON or YAML)")
     p.add_argument("repo", help="consumer repo to fix")
     p.add_argument("--test-cmd", default="python -m pytest")
     p.add_argument("--env", action="append", default=[], metavar="KEY=VALUE")
     p.add_argument("--open-pr", action="store_true", help="open a GitHub PR if tests pass")
+    p.add_argument("--dry-run", action="store_true",
+                   help="show the planned edits as a diff; change nothing and run no tests")
     args = p.parse_args(argv)
+    if args.dry_run and args.open_pr:
+        p.error("--dry-run and --open-pr cannot be used together")
 
     repo = Path(args.repo).expanduser().resolve()
     env = dict(e.split("=", 1) for e in args.env)
@@ -26,6 +31,19 @@ def main(argv=None) -> int:
         print(f"  [{c.kind}] {c.method} {c.path}: {label}")
     if not edits:
         print("No fixes to apply.")
+        return 0
+
+    if args.dry_run:
+        for path, new_text in edits.items():
+            rel = str(path.relative_to(repo))
+            diff = difflib.unified_diff(
+                path.read_text().splitlines(keepends=True),
+                new_text.splitlines(keepends=True),
+                fromfile=f"a/{rel}", tofile=f"b/{rel}",
+            )
+            print("".join(diff), end="")
+        print(f"\nDry run: nothing was changed and no tests were run.")
+        print(f"Tests that would run: {args.test_cmd}")
         return 0
 
     originals = {path: path.read_text() for path in edits}
