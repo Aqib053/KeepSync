@@ -67,3 +67,7 @@ Across all runs no wrong edit was left behind: when a fix broke a test, it was r
 
 - **Ripple** matches consumers by field name, and its README says fixes are syntax-checked. In our runs its local CLI detected the break but generated no fix. Its fix step appears to need an AI key, which we did not use, so we make no claim about what it can do with one.
 - **depfix** targets vendor APIs and, per its README, runs tests before and after each fix. We read its page but did not run it.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
