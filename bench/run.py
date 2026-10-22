@@ -61,6 +61,9 @@ def cli() -> int:
             passed += ok
             print(f"{case.name:<36}{case.expect:<11}{outcome:<11}{'PASS' if ok else 'MISS'}")
     print(f"\nScore: {passed}/{len(CASES)}")
+    if "--min" in sys.argv:
+        needed = int(sys.argv[sys.argv.index("--min") + 1])
+        return 0 if passed >= needed else 1
     return 0
 
 
