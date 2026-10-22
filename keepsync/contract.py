@@ -15,7 +15,20 @@ class Change:
 
 def load_spec(path) -> dict:
     with open(path) as f:
-        return json.load(f)
+        text = f.read()
+    if str(path).lower().endswith((".yaml", ".yml")):
+        try:
+            import yaml
+        except ImportError as exc:
+            raise SystemExit(
+                "YAML specs need PyYAML. Run: python -m pip install pyyaml"
+            ) from exc
+        data = yaml.safe_load(text)
+    else:
+        data = json.loads(text)
+    if not isinstance(data, dict) or "paths" not in data:
+        raise SystemExit(f"{path} does not look like an OpenAPI spec (no 'paths').")
+    return data
 
 
 def _resolve(spec: dict, schema: dict) -> dict:
@@ -32,7 +45,9 @@ def response_fields(spec: dict) -> dict:
         for method, op in methods.items():
             if not isinstance(op, dict):
                 continue
-            content = op.get("responses", {}).get("200", {}).get("content", {})
+            responses = op.get("responses", {})
+            ok = responses.get("200") or responses.get(200) or {}
+            content = ok.get("content", {})
             schema = content.get("application/json", {}).get("schema")
             if not schema:
                 continue

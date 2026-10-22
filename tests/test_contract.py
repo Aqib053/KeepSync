@@ -34,3 +34,32 @@ def test_ambiguous_is_not_a_rename():
     new = make_spec({"given": "string", "family": "string"})
     kinds = sorted(c.kind for c in diff_specs(old, new))
     assert kinds == ["added", "added", "removed", "removed"]
+
+
+def test_loads_yaml_spec_with_unquoted_status_codes(tmp_path):
+    template = """openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /orders/{order_id}:
+    get:
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+components:
+  schemas:
+    Order:
+      properties:
+        id: {type: integer}
+        FIELD: {type: string}
+"""
+    old = tmp_path / "old.yaml"
+    new = tmp_path / "new.yaml"
+    old.write_text(template.replace("FIELD", "customer_name"))
+    new.write_text(template.replace("FIELD", "customer"))
+    changes = diff_specs(load_spec(old), load_spec(new))
+    assert [(c.kind, c.field, c.new_field) for c in changes] == [
+        ("rename", "customer_name", "customer")
+    ]
