@@ -53,3 +53,21 @@ def test_open_pr_adds_only_changed_files(tmp_path, monkeypatch):
     assert url.endswith("/pull/1")
     assert calls[0][:3] == ["git", "checkout", "-b"]
     assert ["git", "add", "billing/client.py"] in calls
+
+
+def test_dry_run_changes_nothing(tmp_path, capsys):
+    repo = make_repo(tmp_path, "Asha")
+    assert main([OLD, NEW, str(repo), "--dry-run"]) == 0
+    assert (repo / "client.py").read_text() == CLIENT
+    out = capsys.readouterr().out
+    assert '-    return r.json()["customer_name"]' in out
+    assert '+    return r.json()["customer"]' in out
+    assert "Dry run" in out
+
+
+def test_dry_run_and_open_pr_cannot_be_combined(tmp_path):
+    import pytest
+
+    repo = make_repo(tmp_path, "Asha")
+    with pytest.raises(SystemExit):
+        main([OLD, NEW, str(repo), "--dry-run", "--open-pr"])
